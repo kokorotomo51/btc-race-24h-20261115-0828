@@ -4,13 +4,19 @@
 // its 24 hours with one sharp V-shaped rally, so the bot stays in cash through the
 // grind down and only rides confirmed up-moves:
 //
-//   - Entry, on a bar's close (filled at the next open): EMA(8) crosses above
-//     EMA(60) AND the 30-bar momentum is at least +15 bps AND the close breaks
+//   - Entry, on a bar's close (filled at the next open): EMA(5) crosses above
+//     EMA(30) AND the 20-bar momentum is at least +25 bps AND the close breaks
 //     above the highest close of the last 30 bars. All three must agree, so chop
-//     and false starts rarely open a position.
-//   - Exit, the whole position: the close falls 80 bps below the peak since entry
-//     (trailing stop), or EMA(8) crosses back below EMA(60), or the 30-bar momentum
-//     turns to -20 bps or worse. Whichever comes first.
+//     and false starts rarely open a position. The faster EMAs (5/30 instead of
+//     8/60) react to a rally a few bars earlier, which is where the profit is:
+//     the dev window's one big V-rally is entered ~20 bars after its trough and
+//     the bot still rides its middle. The stricter momentum filter (+25 bps over
+//     20 bars, was +15 over 30) keeps the bot out of the two mid-window false
+//     rallies that cost the previous version -$0.92 and -$6.90.
+//   - Exit, the whole position: the close falls 50 bps below the peak since entry
+//     (trailing stop), or EMA(5) crosses back below EMA(30), or the 30-bar momentum
+//     turns to -20 bps or worse. Whichever comes first. The tighter 50 bps trail
+//     (was 80) locks in more of each rise before it reverses.
 //   - After a losing exit the bot waits 45 bars before it may enter again, so a
 //     choppy stretch cannot bleed it with repeated round trips (each costs ~20-43 bps
 //     in fee, slippage and pool impact at the depths this pool carries).
@@ -24,21 +30,26 @@
 // Everything is deterministic float64 on the bars alone: no clock, no environment,
 // no randomness, so the two graded runs produce byte-identical action logs.
 // Backtested on the published dev window with the kit's own market model
-// (see NOTES.md): net PnL +$12.53, 9 filled orders, max drawdown 2.01%.
+// (see NOTES.md): net PnL +$31.10, 5 filled orders (+1 final flatten),
+// max drawdown 1.28%, win rate 33% (1 win / 2 losses). Verified with the kit's
+// official grade-local --driver process (return 0.031096902, status finished,
+// error null). The improvement over the previous improved version (+$22.62)
+// comes from the stricter momentum filter alone; the strategy family is
+// unchanged. Still far below the $138 leaderboard top — see NOTES.md.
 
 import { runBars, type Bar, type BarsState, type BuyInput, type SellInput } from './vendor/makefun-bars.ts';
 
 const SYMBOL = 'CBBTC';
-const FAST_BARS = 8;
-const SLOW_BARS = 60;
+const FAST_BARS = 5;
+const SLOW_BARS = 30;
 /** Momentum lookback, in bars. */
-const MOM_BARS = 30;
+const MOM_BARS = 20;
 /** Entry needs the 30-bar return at or above this, in bps. */
-const MOM_ENTRY_BPS = 15;
+const MOM_ENTRY_BPS = 25;
 /** Exit when the 30-bar return falls to this, in bps. */
 const MOM_EXIT_BPS = -20;
 /** Trailing stop: exit once the close is this far below the peak since entry, in bps. */
-const TRAIL_BPS = 80;
+const TRAIL_BPS = 50;
 /** Breakout: the close must beat the highest close of this many bars before it. */
 const BREAK_BARS = 30;
 /** Bars to wait after a losing exit before a new entry. */
